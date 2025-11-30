@@ -1,8 +1,6 @@
 # DepGuardian
 
 [![npm version](https://badge.fury.io/js/depguardian-cli.svg)](https://badge.fury.io/js/depguardian-cli)
-[![Build Status](https://github.com/M1tsumi/DepGuardian/workflows/CI/badge.svg)](https://github.com/M1tsumi/DepGuardian/actions)
-[![Coverage Status](https://coveralls.io/repos/github/M1tsumi/DepGuardian/badge.svg?branch=main)](https://coveralls.io/github/M1tsumi/DepGuardian?branch=main)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 A robust, real-time vulnerability scanner for npm dependencies that safeguards your projects against supply chain attacks. It automatically detects security issues, suggests safe upgrade paths, and creates pull requests for seamless patching. Empowering developers to maintain secure, up-to-date codebases with minimal effort.
