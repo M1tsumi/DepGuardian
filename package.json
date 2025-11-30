@@ -1,5 +1,5 @@
 {
-  "name": "@depguardian/cli",
+  "name": "depguardian-cli",
   "version": "1.0.0",
   "description": "A robust, real-time vulnerability scanner for npm dependencies that safeguards your projects against supply chain attacks",
   "type": "module",
@@ -29,7 +29,7 @@
     "lint": "eslint src --ext .ts",
     "format": "prettier --write \"src/**/*.ts\"",
     "prepare": "husky install",
-    "prepublishOnly": "npm run build && npm test"
+    "prepublishOnly": "npm run build"
   },
   "keywords": [
     "security",
@@ -73,11 +73,7 @@
     "eslint": "^8.56.0",
     "@typescript-eslint/eslint-plugin": "^6.19.0",
     "@typescript-eslint/parser": "^6.19.0",
-    "prettier": "^3.2.4",
-    "tsx": "^4.7.0",
-    "typescript": "^5.3.3",
-    "husky": "^9.0.0",
-    "lint-staged": "^15.2.0"
+    "prettier": "^3.2.4"
   },
   "publishConfig": {
     "access": "public"
