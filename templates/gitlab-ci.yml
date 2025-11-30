@@ -1,0 +1,209 @@
+# DepGuardian Security Pipeline
+stages:
+  - security-scan
+  - license-check
+  - dependency-update
+
+variables:
+  NODE_VERSION: "20"
+  DEPGUARDIAN_IMAGE: "node:20-alpine"
+
+security_scan:
+  stage: security-scan
+  image: $DEPGUARDIAN_IMAGE
+  before_script:
+    - npm ci --cache .npm --prefer-offline --no-audit
+    - npm install -g @depguardian/cli
+  script:
+    - depguardian scan . --json > security-report.json
+    - |
+      if [ -f security-report.json ]; then
+        VULNS=$(cat security-report.json | jq -r '.vulnerablePackages')
+        THREATS=$(cat security-report.json | jq -r '.supplyChainThreats | length')
+        
+        echo "Vulnerable packages: $VULNS"
+        echo "Supply chain threats: $THREATS"
+        
+        if [ "$VULNS" -gt 0 ] || [ "$THREATS" -gt 0 ]; then
+          echo "🚨 Security issues detected!"
+          exit 1
+        fi
+      fi
+  artifacts:
+    reports:
+      junit: security-report.json
+    paths:
+      - security-report.json
+    expire_in: 1 week
+  cache:
+    paths:
+      - .npm/
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+
+supply_chain_monitoring:
+  stage: security-scan
+  image: $DEPGUARDIAN_IMAGE
+  before_script:
+    - npm ci --cache .npm --prefer-offline --no-audit
+    - npm install -g @depguardian/cli
+  script:
+    - |
+      if [ -n "$SNYK_TOKEN" ]; then
+        jq '.snyk.enabled = true' .depguardian.json > .depguardian.tmp.json && mv .depguardian.tmp.json .depguardian.json
+      fi
+      
+      depguardian scan . --json > supply-chain-report.json
+      
+      if [ -f supply-chain-report.json ]; then
+        THREATS=$(cat supply-chain-report.json | jq -r '.supplyChainThreats | length')
+        
+        if [ "$THREATS" -gt 0 ]; then
+          echo "🚨 Supply chain threats detected: $THREATS"
+          
+          # Send Slack notification if webhook is configured
+          if [ -n "$SLACK_WEBHOOK" ]; then
+            curl -X POST -H 'Content-type: application/json' \
+              --data "{\"text\":\"🚨 Supply chain threats detected in $CI_PROJECT_NAME: $THREATS threats found\"}" \
+              $SLACK_WEBHOOK
+          fi
+          
+          exit 1
+        fi
+      fi
+  artifacts:
+    paths:
+      - supply-chain-report.json
+    expire_in: 1 week
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+
+license_compliance:
+  stage: license-check
+  image: $DEPGUARDIAN_IMAGE
+  before_script:
+    - npm ci --cache .npm --prefer-offline --no-audit
+    - npm install -g @depguardian/cli
+  script:
+    - depguardian scan . --json > license-report.json
+    - |
+      if [ -f license-report.json ]; then
+        # Add custom license checking logic here
+        echo "License compliance check completed"
+        
+        # Example: Check for GPL licenses
+        GPL_COUNT=$(cat license-report.json | jq -r '.dependencies[] | select(.license | test("GPL")) | .name' | wc -l)
+        if [ "$GPL_COUNT" -gt 0 ]; then
+          echo "⚠️ Found $GPL_COUNT packages with GPL licenses"
+          # Uncomment to fail on GPL licenses
+          # exit 1
+        fi
+      fi
+  artifacts:
+    paths:
+      - license-report.json
+    expire_in: 1 week
+  cache:
+    paths:
+      - .npm/
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+dependency_update:
+  stage: dependency-update
+  image: $DEPGUARDIAN_IMAGE
+  before_script:
+    - npm ci --cache .npm --prefer-offline --no-audit
+    - npm install -g @depguardian/cli
+  script:
+    - |
+      if [ -n "$GITHUB_TOKEN" ] || [ -n "$GITLAB_TOKEN" ]; then
+        # Configure for automatic updates
+        jq '.github.enabled = true' .depguardian.json > .depguardian.tmp.json && mv .depguardian.tmp.json .depguardian.json
+        
+        if [ -n "$SNYK_TOKEN" ]; then
+          jq '.snyk.enabled = true' .depguardian.json > .depguardian.tmp.json && mv .depguardian.tmp.json .depguardian.json
+        fi
+        
+        # Run automatic dependency updates
+        depguardian scan . --fix || true
+        
+        # Commit and push changes if any
+        if [ -n "$(git status --porcelain)" ]; then
+          git config --global user.name "DepGuardian Bot"
+          git config --global user.email "depguardian@example.com"
+          git add package.json package-lock.json
+          git commit -m "chore: update dependencies for security"
+          git push origin HEAD:${CI_COMMIT_REF_NAME}
+        fi
+      fi
+  cache:
+    paths:
+      - .npm/
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "schedule"
+
+# Security policy enforcement
+security_policy:
+  stage: security-scan
+  image: $DEPGUARDIAN_IMAGE
+  script:
+    - |
+      # Fail on critical vulnerabilities
+      if [ -f security-report.json ]; then
+        CRITICAL=$(cat security-report.json | jq -r '.criticalCount')
+        HIGH=$(cat security-report.json | jq -r '.highCount')
+        
+        if [ "$CRITICAL" -gt 0 ]; then
+          echo "❌ Critical vulnerabilities found: $CRITICAL"
+          exit 1
+        fi
+        
+        if [ "$HIGH" -gt 5 ]; then
+          echo "❌ Too many high vulnerabilities: $HIGH"
+          exit 1
+        fi
+      fi
+      
+      # Fail on supply chain threats
+      if [ -f supply-chain-report.json ]; then
+        CRITICAL_THREATS=$(cat supply-chain-report.json | jq -r '.supplyChainCriticalCount')
+        HIGH_THREATS=$(cat supply-chain-report.json | jq -r '.supplyChainHighCount')
+        
+        if [ "$CRITICAL_THREATS" -gt 0 ]; then
+          echo "❌ Critical supply chain threats found: $CRITICAL_THREATS"
+          exit 1
+        fi
+        
+        if [ "$HIGH_THREATS" -gt 3 ]; then
+          echo "❌ Too many high supply chain threats: $HIGH_THREATS"
+          exit 1
+        fi
+      fi
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push" && $CI_COMMIT_BRANCH == $CI_DEFAULT_BRANCH
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"
+
+# Generate security report
+security_report:
+  stage: security-scan
+  image: $DEPGUARDIAN_IMAGE
+  before_script:
+    - npm ci --cache .npm --prefer-offline --no-audit
+    - npm install -g @depguardian/cli
+  script:
+    - depguardian scan . --markdown > security-report.md
+    - depguardian scan . --json > security-report.json
+  artifacts:
+    reports:
+      junit: security-report.json
+    paths:
+      - security-report.md
+      - security-report.json
+    expire_in: 1 week
+  rules:
+    - if: $CI_PIPELINE_SOURCE == "push"
+    - if: $CI_PIPELINE_SOURCE == "merge_request_event"

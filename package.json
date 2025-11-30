@@ -1,0 +1,89 @@
+{
+  "name": "@depguardian/cli",
+  "version": "1.0.0",
+  "description": "A robust, real-time vulnerability scanner for npm dependencies that safeguards your projects against supply chain attacks",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "depguardian": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": [
+    "dist",
+    "templates",
+    "README.md",
+    "CHANGELOG.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsx watch src/cli.ts",
+    "test": "vitest",
+    "test:coverage": "vitest --coverage",
+    "lint": "eslint src --ext .ts",
+    "format": "prettier --write \"src/**/*.ts\"",
+    "prepare": "husky install",
+    "prepublishOnly": "pnpm build && pnpm test"
+  },
+  "keywords": [
+    "security",
+    "vulnerability",
+    "npm",
+    "dependencies",
+    "supply-chain",
+    "audit",
+    "scanner",
+    "github-action",
+    "cli"
+  ],
+  "author": "M1tsumi <[email protected]>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/M1tsumi/DepGuardian.git"
+  },
+  "bugs": {
+    "url": "https://github.com/M1tsumi/DepGuardian/issues"
+  },
+  "homepage": "https://github.com/M1tsumi/DepGuardian#readme",
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "dependencies": {
+    "commander": "^12.0.0",
+    "chalk": "^5.3.0",
+    "ora": "^8.0.1",
+    "@octokit/rest": "^20.0.2",
+    "semver": "^7.5.4",
+    "node-fetch": "^3.3.2",
+    "zod": "^3.22.4",
+    "dotenv": "^16.4.5"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.0",
+    "@types/semver": "^7.5.6",
+    "vitest": "^1.2.0",
+    "@vitest/coverage-v8": "^1.2.0",
+    "eslint": "^8.56.0",
+    "@typescript-eslint/eslint-plugin": "^6.19.0",
+    "@typescript-eslint/parser": "^6.19.0",
+    "prettier": "^3.2.4",
+    "tsx": "^4.7.0",
+    "typescript": "^5.3.3",
+    "husky": "^9.0.0",
+    "lint-staged": "^15.2.0"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "funding": {
+    "type": "github",
+    "url": "https://github.com/sponsors/M1tsumi"
+  }
+}

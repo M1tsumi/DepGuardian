@@ -1,0 +1,50 @@
+{
+  "scan": {
+    "paths": [
+      "."
+    ],
+    "exclude": [
+      "node_modules",
+      "dist",
+      "build"
+    ],
+    "severity": "medium",
+    "ignoredPackages": [],
+    "ignoredVulnerabilities": []
+  },
+  "snyk": {
+    "enabled": false,
+    "token": "${SNYK_TOKEN}",
+    "organization": "",
+    "endpoint": "https://api.snyk.io"
+  },
+  "github": {
+    "enabled": false,
+    "token": "${GITHUB_TOKEN}",
+    "repository": "owner/repo",
+    "baseBranch": "main",
+    "labels": [
+      "security",
+      "dependencies",
+      "automated"
+    ],
+    "reviewers": [],
+    "separatePRs": true,
+    "prTitle": "🔒 Security: Update [package] to fix [vulnerability]"
+  },
+  "notifications": {
+    "slack": {
+      "enabled": false,
+      "webhookUrl": "${SLACK_WEBHOOK}"
+    },
+    "email": {
+      "enabled": false,
+      "recipients": []
+    }
+  },
+  "ci": {
+    "failOnVulnerabilities": true,
+    "failOnSeverity": "high",
+    "failOnSupplyChainThreats": true
+  }
+}

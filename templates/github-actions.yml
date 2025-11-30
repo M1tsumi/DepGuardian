@@ -1,0 +1,177 @@
+name: DepGuardian Security Scan
+
+on:
+  push:
+    branches: [ main, develop ]
+  pull_request:
+    branches: [ main ]
+  schedule:
+    # Run daily at 2 AM UTC
+    - cron: '0 2 * * *'
+
+jobs:
+  security-scan:
+    runs-on: ubuntu-latest
+    
+    strategy:
+      matrix:
+        node-version: [18.x, 20.x]
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js ${{ matrix.node-version }}
+      uses: actions/setup-node@v4
+      with:
+        node-version: ${{ matrix.node-version }}
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Install DepGuardian
+      run: npm install -g @depguardian/cli
+      
+    - name: Run security scan
+      run: |
+        depguardian scan . --json > security-report.json || true
+        
+    - name: Upload security report
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: security-report-${{ matrix.node-version }}
+        path: security-report.json
+        
+    - name: Check for vulnerabilities
+      run: |
+        if [ -f security-report.json ]; then
+          VULNS=$(jq -r '.vulnerablePackages' security-report.json)
+          THREATS=$(jq -r '.supplyChainThreats | length' security-report.json)
+          
+          echo "Vulnerable packages: $VULNS"
+          echo "Supply chain threats: $THREATS"
+          
+          if [ "$VULNS" -gt 0 ] || [ "$THREATS" -gt 0 ]; then
+            echo "🚨 Security issues detected!"
+            exit 1
+          fi
+        fi
+        
+    - name: Create PR for fixes (if vulnerabilities found)
+      if: failure() && github.event_name == 'push' && github.ref == 'refs/heads/main'
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      run: |
+        # Enable GitHub integration in config
+        jq '.github.enabled = true' .depguardian.json > .depguardian.tmp.json && mv .depguardian.tmp.json .depguardian.json
+        jq '.snyk.enabled = true' .depguardian.json > .depguardian.tmp.json && mv .depguardian.tmp.json .depguardian.json
+        
+        # Create PRs for fixes
+        depguardian scan . --pr || true
+
+  supply-chain-monitoring:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Install DepGuardian
+      run: npm install -g @depguardian/cli
+      
+    - name: Run supply chain analysis
+      env:
+        SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      run: |
+        depguardian scan . --json > supply-chain-report.json
+        
+    - name: Send Slack notification (if threats found)
+      if: failure()
+      env:
+        SLACK_WEBHOOK: ${{ secrets.SLACK_WEBHOOK }}
+      run: |
+        if [ -f supply-chain-report.json ]; then
+          THREATS=$(jq -r '.supplyChainThreats | length' supply-chain-report.json)
+          
+          if [ "$THREATS" -gt 0 ]; then
+            curl -X POST -H 'Content-type: application/json' \
+              --data "{\"text\":\"🚨 Supply chain threats detected in ${{ github.repository }}: $THREATS threats found\"}" \
+              $SLACK_WEBHOOK
+          fi
+        fi
+
+  license-compliance:
+    runs-on: ubuntu-latest
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Install DepGuardian
+      run: npm install -g @depguardian/cli
+      
+    - name: Check license compliance
+      run: |
+        depguardian scan . --json > license-report.json
+        
+        # Check for non-permissive licenses
+        if [ -f license-report.json ]; then
+          # Add custom license checking logic here
+          echo "License compliance check completed"
+        fi
+
+  dependency-update:
+    runs-on: ubuntu-latest
+    if: github.event_name == 'schedule'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        token: ${{ secrets.GITHUB_TOKEN }}
+        
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '20.x'
+        cache: 'npm'
+        
+    - name: Install dependencies
+      run: npm ci
+      
+    - name: Install DepGuardian
+      run: npm install -g @depguardian/cli
+      
+    - name: Update dependencies
+      env:
+        GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+      run: |
+        # Configure for automatic updates
+        jq '.github.enabled = true' .depguardian.json > .depguardian.tmp.json && mv .depguardian.tmp.json .depguardian.json
+        jq '.snyk.enabled = true' .depguardian.json > .depguardian.tmp.json && mv .depguardian.tmp.json .depguardian.json
+        
+        # Run automatic dependency updates
+        depguardian scan . --fix --pr || true
