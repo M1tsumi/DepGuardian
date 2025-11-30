@@ -29,7 +29,7 @@
     "lint": "eslint src --ext .ts",
     "format": "prettier --write \"src/**/*.ts\"",
     "prepare": "husky install",
-    "prepublishOnly": "pnpm build && pnpm test"
+    "prepublishOnly": "npm run build && npm test"
   },
   "keywords": [
     "security",
