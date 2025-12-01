@@ -112,177 +112,6 @@ export class SafeUpgradeCalculator {
     }
   }
 
-  private async getAvailableVersions(packageName: string): Promise<string[]> {
-    try {
-      const response = await fetch(`https://registry.npmjs.org/${packageName}`);
-      
-      if (!response.ok) {
-        throw new Error(`Failed to fetch package info: ${response.status}`);
-      }
-      
-      const packageInfo = await response.json() as any;
-      
-      if (!packageInfo.versions) {
-        return [];
-      }
-      
-      return Object.keys(packageInfo.versions);
-      
-    } catch (error) {
-      logger.warn(`Failed to get available versions for ${packageName}: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      return [];
-    }
-  }
-
-  private findFixedVersions(vulnerabilities: Vulnerability[], availableVersions: string[]): string[] {
-    const fixedVersions: string[] = [];
-    
-    for (const vulnerability of vulnerabilities) {
-      if (vulnerability.patchedVersions) {
-        for (const patchedVersion of vulnerability.patchedVersions) {
-          if (availableVersions.includes(patchedVersion)) {
-            fixedVersions.push(patchedVersion);
-          }
-        }
-      }
-      
-      // Also check if firstPatchedVersion is available
-      if (vulnerability.firstPatchedVersion && availableVersions.includes(vulnerability.firstPatchedVersion)) {
-        fixedVersions.push(vulnerability.firstPatchedVersion);
-      }
-    }
-    
-    // Remove duplicates and sort
-    return [...new Set(fixedVersions)].sort((a, b) => this.semverUtils.greaterThan(a, b) ? -1 : 1);
-  }
-
-  private findSafestUpgrade(
-    currentVersion: string, 
-    fixedVersions: string[], 
-    availableVersions: string[]
-  ): string | null {
-    // Prefer non-breaking upgrades first
-    const nonBreakingUpgrades = fixedVersions.filter(version => 
-      !this.semverUtils.isBreakingUpgrade(currentVersion, version)
-    );
-    
-    if (nonBreakingUpgrades.length > 0) {
-      // Return the highest non-breaking version that fixes issues
-      return this.semverUtils.maxVersion(nonBreakingUpgrades);
-    }
-    
-    // If only breaking upgrades are available, return the lowest one that fixes issues
-    const sortedBreakingUpgrades = fixedVersions
-      .filter(version => this.semverUtils.isBreakingUpgrade(currentVersion, version))
-      .sort((a, b) => this.semverUtils.greaterThan(a, b) ? -1 : 1); // Sort descending, then take lowest
-    
-    return sortedBreakingUpgrades[sortedBreakingUpgrades.length - 1] || null;
-  }
-
-  private calculateConfidence(
-    currentVersion: string, 
-    targetVersion: string, 
-    fixedVersions: string[]
-  ): UpgradePath['confidence'] {
-    // High confidence: direct upgrade to a patched version
-    if (fixedVersions.includes(targetVersion)) {
-      return 'high';
-    }
-    
-    // Medium confidence: minor version increase
-    if (this.semverUtils.sameMajorVersion(currentVersion, targetVersion)) {
-      return 'medium';
-    }
-    
-    // Low confidence: major version increase or unusual version jump
-    return 'low';
-  }
-
-  private calculateRiskScore(
-    currentVulnerabilities: Vulnerability[],
-    newVulnerabilities: Vulnerability[],
-    currentVersion: string,
-    targetVersion: string
-  ): number {
-    let riskScore = 0;
-    
-    // Add risk based on current vulnerabilities
-    for (const vuln of currentVulnerabilities) {
-      switch (vuln.severity) {
-        case 'critical':
-          riskScore += 10;
-          break;
-        case 'high':
-          riskScore += 5;
-          break;
-        case 'medium':
-          riskScore += 2;
-          break;
-        case 'low':
-          riskScore += 1;
-          break;
-      }
-    }
-    
-    // Subtract benefit from fixing vulnerabilities
-    riskScore -= currentVulnerabilities.length * 3;
-    
-    // Add risk for new vulnerabilities introduced
-    for (const vuln of newVulnerabilities) {
-      switch (vuln.severity) {
-        case 'critical':
-          riskScore += 8;
-          break;
-        case 'high':
-          riskScore += 4;
-          break;
-        case 'medium':
-          riskScore += 2;
-          break;
-        case 'low':
-          riskScore += 1;
-          break;
-      }
-    }
-    
-    // Add risk for breaking changes
-    if (this.semverUtils.isBreakingUpgrade(currentVersion, targetVersion)) {
-      riskScore += 3;
-    }
-    
-    // Ensure score is non-negative
-    return Math.max(0, riskScore);
-  }
-
-  private async getChangelogUrl(packageName: string, fromVersion: string, toVersion: string): Promise<string | undefined> {
-    try {
-      // Try to construct GitHub changelog URL
-      const response = await fetch(`https://registry.npmjs.org/${packageName}`);
-      
-      if (!response.ok) {
-        return undefined;
-      }
-      
-      const packageInfo = await response.json() as any;
-      const repository = packageInfo.repository;
-      
-      if (repository && repository.url) {
-        // Extract GitHub repo from URL
-        const githubMatch = repository.url.match(/github\.com\/([^\/]+\/[^\/]+)/);
-        if (githubMatch) {
-          const repo = githubMatch[1].replace('.git', '');
-          return `https://github.com/${repo}/compare/v${fromVersion}...v${toVersion}`;
-        }
-      }
-      
-      return undefined;
-      
-    } catch (error) {
-      logger.debug(`Failed to get changelog URL for ${packageName}: ${error instanceof Error ? error.message : 'Unknown error'}`);
-      return undefined;
-    }
-  }
-
   async calculateAllUpgradePaths(dependencies: Dependency[], vulnerabilities: Vulnerability[]): Promise<UpgradePath[]> {
     logger.info(`Calculating upgrade paths for ${dependencies.length} dependencies`);
     
@@ -428,5 +257,87 @@ export class SafeUpgradeCalculator {
     if (confidence >= 0.8) return 'high';
     if (confidence >= 0.5) return 'medium';
     return 'low';
+  }
+
+  private async getChangelogUrl(packageName: string, fromVersion: string, toVersion: string): Promise<string | undefined> {
+    try {
+      // Try to construct GitHub changelog URL
+      const response = await fetch(`https://registry.npmjs.org/${packageName}`);
+      
+      if (!response.ok) {
+        return undefined;
+      }
+      
+      const packageInfo = await response.json() as any;
+      const repository = packageInfo.repository;
+      
+      if (repository && repository.url) {
+        // Extract GitHub repo from URL
+        const githubMatch = repository.url.match(/github\.com\/([^\/]+\/[^\/]+)/);
+        if (githubMatch) {
+          const repo = githubMatch[1].replace('.git', '');
+          return `https://github.com/${repo}/compare/v${fromVersion}...v${toVersion}`;
+        }
+      }
+      
+      return undefined;
+      
+    } catch (error) {
+      logger.debug(`Failed to get changelog URL for ${packageName}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      return undefined;
+    }
+  }
+
+  private calculateRiskScore(
+    currentVulnerabilities: Vulnerability[],
+    newVulnerabilities: Vulnerability[],
+    currentVersion: string,
+    targetVersion: string
+  ): number {
+    let riskScore = 0;
+    
+    // Add risk based on current vulnerabilities
+    for (const vuln of currentVulnerabilities) {
+      switch (vuln.severity) {
+        case 'critical':
+          riskScore += 10;
+          break;
+        case 'high':
+          riskScore += 5;
+          break;
+        case 'medium':
+          riskScore += 2;
+          break;
+        case 'low':
+          riskScore += 1;
+          break;
+      }
+    }
+    
+    // Add risk for new vulnerabilities introduced in target version
+    for (const vuln of newVulnerabilities) {
+      switch (vuln.severity) {
+        case 'critical':
+          riskScore += 15;
+          break;
+        case 'high':
+          riskScore += 8;
+          break;
+        case 'medium':
+          riskScore += 3;
+          break;
+        case 'low':
+          riskScore += 1;
+          break;
+      }
+    }
+    
+    // Add risk for breaking upgrades
+    if (this.semverUtils.isBreakingUpgrade(currentVersion, targetVersion)) {
+      riskScore += 3;
+    }
+    
+    // Ensure score is non-negative
+    return Math.max(0, riskScore);
   }
 }
