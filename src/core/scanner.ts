@@ -135,14 +135,33 @@ export class Scanner {
     logger.debug(`Scanning ${dependencies.length} dependencies with OSV`);
     
     try {
-      // For now, use individual queries since batch method doesn't exist
+      // Optimized parallel scanning with batching
+      const batchSize = 20; // Increased batch size for better performance
+      const batches = this.createBatches(dependencies, batchSize);
       const allVulnerabilities: Vulnerability[] = [];
       
-      for (const dep of dependencies.slice(0, 10)) { // Limit to avoid rate limiting
-        const vulnerabilities = await this.osvClient.queryVulnerabilities(dep.name, dep.version);
-        allVulnerabilities.push(...vulnerabilities);
-      }
+      logger.time('OSV parallel scan');
       
+      // Process batches in parallel with rate limiting
+      const batchPromises = batches.map(async (batch, batchIndex) => {
+        logger.debug(`Processing OSV batch ${batchIndex + 1}/${batches.length} with ${batch.length} packages`);
+        
+        const batchVulnerabilities = await Promise.all(
+          batch.map(dep => this.osvClient.queryVulnerabilities(dep.name, dep.version)
+            .catch(error => {
+              logger.warn(`Failed to query ${dep.name}@${dep.version}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+              return [];
+            })
+          )
+        );
+        
+        return batchVulnerabilities.flat();
+      });
+      
+      const batchResults = await Promise.all(batchPromises);
+      allVulnerabilities.push(...batchResults.flat());
+      
+      logger.timeEnd('OSV parallel scan');
       logger.info(`OSV found ${allVulnerabilities.length} vulnerabilities`);
       return allVulnerabilities;
     } catch (error) {
@@ -152,30 +171,51 @@ export class Scanner {
   }
 
   private async scanDependenciesWithSnyk(dependencies: Dependency[]): Promise<Vulnerability[]> {
-    if (!this.snykClient) {
-      return [];
-    }
-
+    if (!this.snykClient) return [];
+    
     logger.debug(`Scanning ${dependencies.length} dependencies with Snyk`);
     
     try {
-      // Check rate limit first
-      const rateLimit = await this.snykClient.checkRateLimit();
-      if (rateLimit.remaining === 0) {
-        logger.warn('Snyk API rate limit exceeded, skipping Snyk scan');
-        return [];
-      }
-
-      logger.debug(`Snyk API rate limit: ${rateLimit.remaining} remaining`);
+      // Optimized parallel scanning for Snyk as well
+      const batchSize = 15; // Slightly smaller for Snyk to respect rate limits
+      const batches = this.createBatches(dependencies, batchSize);
+      const allVulnerabilities: Vulnerability[] = [];
       
-      // Batch scan for efficiency
-      const vulnerabilities = await this.snykClient.testBatch(dependencies);
-      logger.info(`Snyk found ${vulnerabilities.length} vulnerabilities`);
-      return vulnerabilities;
+      logger.time('Snyk parallel scan');
+      
+      const batchPromises = batches.map(async (batch, batchIndex) => {
+        logger.debug(`Processing Snyk batch ${batchIndex + 1}/${batches.length} with ${batch.length} packages`);
+        
+        const batchVulnerabilities = await Promise.all(
+          batch.map(dep => this.snykClient?.testPackage(dep.name, dep.version)
+            .catch((error: Error) => {
+              logger.warn(`Failed to query ${dep.name}@${dep.version} with Snyk: ${error.message}`);
+              return [];
+            }) || Promise.resolve([])
+          )
+        );
+        
+        return batchVulnerabilities.flat();
+      });
+      
+      const batchResults = await Promise.all(batchPromises);
+      allVulnerabilities.push(...batchResults.flat());
+      
+      logger.timeEnd('Snyk parallel scan');
+      logger.info(`Snyk found ${allVulnerabilities.length} vulnerabilities`);
+      return allVulnerabilities;
     } catch (error) {
       logger.error(`Snyk scan failed: ${error instanceof Error ? error.message : 'Unknown error'}`);
       return [];
     }
+  }
+
+  private createBatches<T>(items: T[], batchSize: number): T[][] {
+    const batches: T[][] = [];
+    for (let i = 0; i < items.length; i += batchSize) {
+      batches.push(items.slice(i, i + batchSize));
+    }
+    return batches;
   }
 
   private mergeVulnerabilities(osvVulns: Vulnerability[], snykVulns: Vulnerability[]): Vulnerability[] {

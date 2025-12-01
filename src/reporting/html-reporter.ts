@@ -200,6 +200,165 @@ export class HTMLReporter {
             border-left: 4px solid #3498db;
         }
         
+        /* Mobile Responsive */
+        @media (max-width: 768px) {
+            .container {
+                padding: 10px;
+            }
+            
+            .header {
+                padding: 20px;
+            }
+            
+            .header h1 {
+                font-size: 1.8em;
+            }
+            
+            .summary {
+                grid-template-columns: 1fr;
+                gap: 15px;
+            }
+            
+            .summary-card {
+                padding: 20px;
+            }
+            
+            .summary-card .number {
+                font-size: 2em;
+            }
+            
+            .section-header, .section-content {
+                padding: 15px;
+            }
+            
+            .vulnerability-item, .threat-item {
+                padding: 15px;
+            }
+            
+            .details {
+                grid-template-columns: 1fr;
+            }
+        }
+        
+        /* Interactive Elements */
+        .copy-btn {
+            background: #3498db;
+            color: white;
+            border: none;
+            padding: 6px 12px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.8em;
+            transition: background 0.2s;
+        }
+        
+        .copy-btn:hover {
+            background: #2980b9;
+        }
+        
+        .copy-btn.copied {
+            background: #27ae60;
+        }
+        
+        .search-box {
+            width: 100%;
+            padding: 12px;
+            border: 2px solid #e9ecef;
+            border-radius: 8px;
+            font-size: 1em;
+            margin-bottom: 20px;
+        }
+        
+        .search-box:focus {
+            outline: none;
+            border-color: #3498db;
+        }
+        
+        .filter-group {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 20px;
+            flex-wrap: wrap;
+        }
+        
+        .filter-btn {
+            padding: 8px 16px;
+            border: 2px solid #e9ecef;
+            background: white;
+            border-radius: 20px;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        
+        .filter-btn.active {
+            background: #3498db;
+            color: white;
+            border-color: #3498db;
+        }
+        
+        .expandable {
+            cursor: pointer;
+        }
+        
+        .expandable .toggle-icon {
+            transition: transform 0.2s;
+        }
+        
+        .expandable.expanded .toggle-icon {
+            transform: rotate(180deg);
+        }
+        
+        .collapsible-content {
+            max-height: 0;
+            overflow: hidden;
+            transition: max-height 0.3s ease-out;
+        }
+        
+        .collapsible-content.expanded {
+            max-height: 1000px;
+        }
+        
+        /* Accessibility */
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0,0,0,0);
+            white-space: nowrap;
+            border: 0;
+        }
+        
+        :focus-visible {
+            outline: 2px solid #3498db;
+            outline-offset: 2px;
+        }
+        
+        /* Dark mode support */
+        @media (prefers-color-scheme: dark) {
+            body {
+                background-color: #1a1a1a;
+                color: #e0e0e0;
+            }
+            
+            .summary-card, .section, .vulnerability-item, .threat-item {
+                background: #2d2d2d;
+                color: #e0e0e0;
+            }
+            
+            .section-header {
+                background: #3d3d3d;
+                border-bottom-color: #4d4d4d;
+            }
+            
+            .evidence-list li, .recommendations-list li {
+                background: #3d3d3d;
+            }
+        }
+        }
+        
         .recommendations-list li {
             border-left-color: #27ae60;
         }
@@ -263,6 +422,20 @@ export class HTMLReporter {
             </div>
         </div>
 
+        ${vulnerabilities.length > 0 || threats.length > 0 ? `
+        <div style="margin-bottom: 30px;">
+            <input type="text" class="search-box" placeholder="🔍 Search vulnerabilities, threats, or package names..." id="searchBox">
+            
+            <div class="filter-group">
+                <button class="filter-btn active" data-filter="all">All</button>
+                <button class="filter-btn" data-filter="critical">Critical</button>
+                <button class="filter-btn" data-filter="high">High</button>
+                <button class="filter-btn" data-filter="medium">Medium</button>
+                <button class="filter-btn" data-filter="low">Low</button>
+            </div>
+        </div>
+        ` : ''}
+
         ${vulnerabilities.length > 0 ? `
         <section class="section">
             <div class="section-header">
@@ -299,31 +472,171 @@ export class HTMLReporter {
     </div>
 
     <script>
-        // Add interactive features
+        // Enhanced interactive features
         document.addEventListener('DOMContentLoaded', function() {
-            // Add click-to-copy functionality for package names
-            document.querySelectorAll('.package-name').forEach(element => {
-                element.style.cursor = 'pointer';
-                element.title = 'Click to copy';
-                element.addEventListener('click', function() {
-                    navigator.clipboard.writeText(this.textContent);
-                    const original = this.textContent;
-                    this.textContent = 'Copied!';
-                    setTimeout(() => {
-                        this.textContent = original;
-                    }, 1000);
+            const searchBox = document.getElementById('searchBox');
+            const filterButtons = document.querySelectorAll('.filter-btn');
+            const allItems = document.querySelectorAll('.vulnerability-item, .threat-item');
+            
+            // Search functionality
+            if (searchBox) {
+                searchBox.addEventListener('input', function() {
+                    const searchTerm = this.value.toLowerCase();
+                    filterItems(searchTerm, getCurrentFilter());
+                });
+            }
+            
+            // Filter functionality
+            filterButtons.forEach(button => {
+                button.addEventListener('click', function() {
+                    filterButtons.forEach(btn => btn.classList.remove('active'));
+                    this.classList.add('active');
+                    const searchTerm = searchBox ? searchBox.value.toLowerCase() : '';
+                    filterItems(searchTerm, this.dataset.filter);
                 });
             });
-
-            // Add expand/collapse for long descriptions
-            document.querySelectorAll('.description').forEach(element => {
-                if (element.scrollHeight > element.clientHeight) {
-                    element.style.cursor = 'pointer';
-                    element.addEventListener('click', function() {
-                        this.style.maxHeight = this.style.maxHeight ? '' : '200px';
+            
+            function getCurrentFilter() {
+                const activeBtn = document.querySelector('.filter-btn.active');
+                return activeBtn ? activeBtn.dataset.filter : 'all';
+            }
+            
+            function filterItems(searchTerm, severityFilter) {
+                allItems.forEach(item => {
+                    const text = item.textContent.toLowerCase();
+                    const severity = item.querySelector('.severity-badge').textContent.toLowerCase();
+                    
+                    const matchesSearch = !searchTerm || text.includes(searchTerm);
+                    const matchesSeverity = severityFilter === 'all' || severity === severityFilter;
+                    
+                    if (matchesSearch && matchesSeverity) {
+                        item.style.display = 'block';
+                    } else {
+                        item.style.display = 'none';
+                    }
+                });
+                
+                updateSectionHeaders();
+            }
+            
+            function updateSectionHeaders() {
+                const sections = document.querySelectorAll('.section');
+                sections.forEach(section => {
+                    const visibleItems = section.querySelectorAll('.vulnerability-item:not([style*="display: none"]), .threat-item:not([style*="display: none"])');
+                    const header = section.querySelector('h2');
+                    if (header && visibleItems.length > 0) {
+                        const originalText = header.textContent.split('(')[0].trim();
+                        header.textContent = \`\${originalText} (\${visibleItems.length})\`;
+                    }
+                });
+            }
+            
+            // Enhanced click-to-copy functionality
+            document.querySelectorAll('.package-name').forEach(element => {
+                element.style.cursor = 'pointer';
+                element.title = 'Click to copy package name';
+                element.addEventListener('click', function(e) {
+                    e.stopPropagation();
+                    const packageName = this.textContent;
+                    navigator.clipboard.writeText(packageName).then(() => {
+                        const originalBg = this.style.backgroundColor;
+                        this.style.backgroundColor = '#27ae60';
+                        this.style.color = 'white';
+                        this.textContent = 'Copied!';
+                        
+                        setTimeout(() => {
+                            this.style.backgroundColor = originalBg;
+                            this.style.color = '';
+                            this.textContent = packageName;
+                        }, 1500);
+                    }).catch(() => {
+                        // Fallback for older browsers
+                        const textArea = document.createElement('textarea');
+                        textArea.value = packageName;
+                        document.body.appendChild(textArea);
+                        textArea.select();
+                        document.execCommand('copy');
+                        document.body.removeChild(textArea);
+                        
+                        this.textContent = 'Copied!';
+                        setTimeout(() => {
+                            this.textContent = packageName;
+                        }, 1000);
                     });
+                });
+            });
+            
+            // Add expand/collapse for long content
+            document.querySelectorAll('.description').forEach(element => {
+                if (element.scrollHeight > 120) {
+                    element.style.maxHeight = '120px';
+                    element.style.overflow = 'hidden';
+                    element.style.position = 'relative';
+                    
+                    const expandBtn = document.createElement('button');
+                    expandBtn.textContent = 'Show more';
+                    expandBtn.className = 'copy-btn';
+                    expandBtn.style.marginTop = '10px';
+                    expandBtn.style.fontSize = '0.9em';
+                    
+                    let isExpanded = false;
+                    expandBtn.addEventListener('click', function(e) {
+                        e.stopPropagation();
+                        isExpanded = !isExpanded;
+                        
+                        if (isExpanded) {
+                            element.style.maxHeight = 'none';
+                            this.textContent = 'Show less';
+                        } else {
+                            element.style.maxHeight = '120px';
+                            this.textContent = 'Show more';
+                        }
+                    });
+                    
+                    element.parentNode.insertBefore(expandBtn, element.nextSibling);
                 }
             });
+            
+            // Keyboard navigation
+            document.addEventListener('keydown', function(e) {
+                if (e.key === '/' && document.activeElement !== searchBox) {
+                    e.preventDefault();
+                    if (searchBox) searchBox.focus();
+                }
+                
+                if (e.key === 'Escape') {
+                    if (searchBox) {
+                        searchBox.value = '';
+                        searchBox.blur();
+                        filterItems('', getCurrentFilter());
+                    }
+                }
+            });
+            
+            // Accessibility improvements
+            document.querySelectorAll('.severity-badge').forEach(badge => {
+                const severity = badge.textContent;
+                badge.setAttribute('aria-label', \`Severity level: \${severity}\`);
+                badge.setAttribute('role', 'status');
+            });
+            
+            // Add ARIA live region for search results
+            const liveRegion = document.createElement('div');
+            liveRegion.setAttribute('aria-live', 'polite');
+            liveRegion.setAttribute('aria-atomic', 'true');
+            liveRegion.className = 'sr-only';
+            document.body.appendChild(liveRegion);
+            
+            // Update live region when filters change
+            const originalFilterItems = filterItems;
+            filterItems = function(searchTerm, severityFilter) {
+                originalFilterItems(searchTerm, severityFilter);
+                
+                const visibleCount = document.querySelectorAll('.vulnerability-item:not([style*="display: none"]), .threat-item:not([style*="display: none"])').length;
+                const totalCount = allItems.length;
+                
+                liveRegion.textContent = \`Showing \${visibleCount} of \${totalCount} items\`;
+            };
         });
     </script>
 </body>

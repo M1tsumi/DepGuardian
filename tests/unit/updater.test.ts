@@ -3,8 +3,15 @@ import { SafeUpgradeCalculator } from '../../src/core/updater.js';
 import { Vulnerability, Dependency } from '../../src/types/vulnerability.js';
 import { OSVClient } from '../../src/integrations/osv.js';
 
-// Mock fetch and OSVClient
-global.fetch = vi.fn();
+// Mock node-fetch
+vi.mock('node-fetch', () => ({
+  default: vi.fn(),
+}));
+
+import fetch from 'node-fetch';
+const mockFetch = vi.mocked(fetch);
+
+// Mock OSVClient
 vi.mock('../../src/integrations/osv.js');
 
 describe('SafeUpgradeCalculator', () => {
@@ -12,11 +19,13 @@ describe('SafeUpgradeCalculator', () => {
   let mockOSVClient: any;
 
   beforeEach(() => {
-    calculator = new SafeUpgradeCalculator();
+    // Set up mock before creating calculator
     mockOSVClient = {
       queryVulnerabilities: vi.fn(),
     };
     (OSVClient as any).mockImplementation(() => mockOSVClient);
+    
+    calculator = new SafeUpgradeCalculator();
     vi.clearAllMocks();
   });
 
@@ -32,7 +41,7 @@ describe('SafeUpgradeCalculator', () => {
         },
       };
 
-      (global.fetch as any).mockResolvedValueOnce({
+      (mockFetch as any).mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve(mockRegistryResponse),
       });
@@ -77,7 +86,7 @@ describe('SafeUpgradeCalculator', () => {
         },
       };
 
-      (global.fetch as any).mockResolvedValueOnce({
+      (mockFetch as any).mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve(mockRegistryResponse),
       });
@@ -115,7 +124,7 @@ describe('SafeUpgradeCalculator', () => {
         },
       };
 
-      (global.fetch as any).mockResolvedValueOnce({
+      (mockFetch as any).mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve(mockRegistryResponse),
       });
@@ -146,7 +155,7 @@ describe('SafeUpgradeCalculator', () => {
     });
 
     it('should return null if no available versions', async () => {
-      (global.fetch as any).mockResolvedValueOnce({
+      (mockFetch as any).mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve({}), // No versions
       });
@@ -181,7 +190,7 @@ describe('SafeUpgradeCalculator', () => {
         },
       };
 
-      (global.fetch as any).mockResolvedValueOnce({
+      (mockFetch as any).mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve(mockRegistryResponse),
       });
@@ -219,7 +228,7 @@ describe('SafeUpgradeCalculator', () => {
         },
       };
 
-      (global.fetch as any).mockResolvedValueOnce({
+      (mockFetch as any).mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve(mockRegistryResponse),
       });
@@ -239,7 +248,7 @@ describe('SafeUpgradeCalculator', () => {
         },
       };
 
-      (global.fetch as any).mockResolvedValueOnce({
+      (mockFetch as any).mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve(mockRegistryResponse),
       });
@@ -258,16 +267,19 @@ describe('SafeUpgradeCalculator', () => {
         },
       };
 
-      (global.fetch as any).mockResolvedValueOnce({
+      (mockFetch as any).mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve(mockRegistryResponse),
       });
 
       // Latest version has critical vulnerability
       mockOSVClient.queryVulnerabilities
-        .mockResolvedValueOnce([{ severity: 'critical' }]) // 1.0.2
-        .mockResolvedValueOnce([{ severity: 'critical' }]) // 1.0.1
-        .mockResolvedValueOnce([]); // 1.0.0
+        .mockImplementation((packageName: string, version: string) => {
+          if (version === '1.0.2') return Promise.resolve([{ severity: 'critical' }]);
+          if (version === '1.0.1') return Promise.resolve([{ severity: 'critical' }]);
+          if (version === '1.0.0') return Promise.resolve([]);
+          return Promise.resolve([]);
+        });
 
       const safeVersion = await calculator.findSafeVersion('test-package', '^1.0.0');
 
@@ -281,19 +293,19 @@ describe('SafeUpgradeCalculator', () => {
         versions: {
           '1.0.0': {},
           '1.0.1': {},
+          '2.0.0': {},
+          '3.0.0': {},
         },
       };
 
-      (global.fetch as any).mockResolvedValue({
+      (mockFetch as any).mockResolvedValue({
         ok: true,
         json: () => Promise.resolve(mockRegistryResponse),
       });
 
-      mockOSVClient.queryVulnerabilities.mockResolvedValue([]);
-
       const dependencies: Dependency[] = [
         { name: 'package1', version: '1.0.0', type: 'dependencies' },
-        { name: 'package2', version: '1.0.0', type: 'dependencies' },
+        { name: 'package2', version: '2.0.0', type: 'dependencies' },
       ];
 
       const vulnerabilities: Vulnerability[] = [
@@ -302,7 +314,7 @@ describe('SafeUpgradeCalculator', () => {
           packageName: 'package1',
           version: '1.0.0',
           severity: 'high',
-          title: 'Test Vulnerability',
+          title: 'Test Vulnerability 1',
           description: 'Test description',
           patchedVersions: ['1.0.1'],
           source: 'osv',
@@ -310,14 +322,16 @@ describe('SafeUpgradeCalculator', () => {
         {
           id: 'VULN-2',
           packageName: 'package2',
-          version: '1.0.0',
+          version: '2.0.0',
           severity: 'medium',
-          title: 'Test Vulnerability',
+          title: 'Test Vulnerability 2',
           description: 'Test description',
-          patchedVersions: ['1.0.1'],
+          patchedVersions: ['3.0.0'],
           source: 'osv',
         },
       ];
+
+      mockOSVClient.queryVulnerabilities.mockResolvedValue([]);
 
       const upgradePaths = await calculator.calculateAllUpgradePaths(dependencies, vulnerabilities);
 
@@ -359,7 +373,7 @@ describe('SafeUpgradeCalculator', () => {
         },
       };
 
-      (global.fetch as any).mockResolvedValueOnce({
+      (mockFetch as any).mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve(mockRegistryResponse),
       });
@@ -396,7 +410,7 @@ describe('SafeUpgradeCalculator', () => {
         },
       };
 
-      (global.fetch as any).mockResolvedValueOnce({
+      (mockFetch as any).mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve(mockRegistryResponse),
       });
@@ -433,7 +447,7 @@ describe('SafeUpgradeCalculator', () => {
         },
       };
 
-      (global.fetch as any).mockResolvedValueOnce({
+      (mockFetch as any).mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve(mockRegistryResponse),
       });
@@ -472,7 +486,7 @@ describe('SafeUpgradeCalculator', () => {
         },
       };
 
-      (global.fetch as any).mockResolvedValueOnce({
+      (mockFetch as any).mockResolvedValueOnce({
         ok: true,
         json: () => Promise.resolve(mockRegistryResponse),
       });
@@ -515,7 +529,7 @@ describe('SafeUpgradeCalculator', () => {
 
   describe('error handling', () => {
     it('should handle fetch errors gracefully', async () => {
-      (global.fetch as any).mockRejectedValueOnce(new Error('Network error'));
+      mockFetch.mockRejectedValueOnce(new Error('Network error'));
 
       const vulnerabilities: Vulnerability[] = [
         {
@@ -540,7 +554,7 @@ describe('SafeUpgradeCalculator', () => {
     });
 
     it('should handle registry errors gracefully', async () => {
-      (global.fetch as any).mockResolvedValueOnce({
+      (mockFetch as any).mockResolvedValueOnce({
         ok: false,
         status: 404,
       });

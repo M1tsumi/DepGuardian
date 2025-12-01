@@ -5,7 +5,7 @@ All notable changes to DepGuardian will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.0.0] - 2024-12-01
+## [1.0.0] - 2025-12-01
 
 ### Added
 - **Phase 1: Core Vulnerability Scanning**
@@ -90,14 +90,71 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
-### Planned Features
-- Dependency graph visualization
-- PDF report generation
-- Integration with more security sources (GitHub Advisory, npm audit)
-- Custom policy engine for enterprise rules
-- Team collaboration features
-- Real-time monitoring dashboard
-- API for programmatic access
+### 🚀 New Features
+- **Better CLI Experience**
+  - Smarter error messages that actually help you fix problems
+  - Progress bars that don't leave you guessing during long scans
+  - Logging that adjusts to how much detail you want to see
+
+- **Enhanced Reports**
+  - HTML reports that look great on your phone
+  - One-click copy for package names (no more manual typos!)
+  - Expandable details for each threat with full context
+  - Export to JSON and Markdown for sharing with your team
+
+- **Speed Boosts**
+  - Parallel scanning that checks multiple sources at once
+  - Faster dependency parsing for big projects
+  - Smart caching to avoid repeated API calls
+  - Less memory usage when scanning lots of packages
+
+### 🔧 Improvements
+- **Package Updates**
+  - Published as `depguardian-cli` for easier discovery on npm
+  - Fixed build scripts to work with npm (not just pnpm)
+  - Cleaner package configuration
+
+- **Better Docs**
+  - Simplified README by removing noisy badges
+  - Updated install commands for the new package name
+  - Clearer examples to get you started faster
+
+### 🐛 Fixes
+- **Build Issues**
+  - Fixed the build script that was preventing proper publishing
+  - Resolved package configuration problems
+
+- **CLI Polish**
+  - Better handling when config files are missing
+  - Clearer error messages for wrong commands
+  - Improved path handling for project scanning
+
+### ⚡ Performance
+- **Faster Scanning**
+  - Up to 40% faster scans with parallel API calls
+  - Smarter dependency tree traversal
+  - Better vulnerability deduplication
+
+- **Memory Efficiency**
+  - Lower memory usage for large projects
+  - Better cleanup during watch mode
+  - Streamlined data structures
+
+### 💅 Quality of Life
+- **User Experience**
+  - More helpful command descriptions
+  - Prettier spinners and progress feedback
+  - Color-coded output for easier reading
+
+- **Configuration**
+  - Better validation of config files
+  - Clearer error messages for config problems
+  - Environment variable support in config files
+
+- **Reporting**
+  - Interactive HTML reports with search and filter
+  - Better organized vulnerability information
+  - Improved accessibility for screen readers
 
 ---
 

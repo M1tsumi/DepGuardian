@@ -108,6 +108,22 @@ export class SemverUtils {
   }
 
   /**
+   * Get the major version number
+   */
+  major(version: string): number {
+    const parsed = semver.coerce(version);
+    return parsed ? parsed.major : 0;
+  }
+
+  /**
+   * Get the minor version number
+   */
+  minor(version: string): number {
+    const parsed = semver.coerce(version);
+    return parsed ? parsed.minor : 0;
+  }
+
+  /**
    * Check if two versions have the same major version
    */
   sameMajorVersion(version1: string, version2: string): boolean {

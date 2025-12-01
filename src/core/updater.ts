@@ -82,7 +82,8 @@ export class SafeUpgradeCalculator {
       }
 
       // Get the latest satisfying version that doesn't have vulnerabilities
-      const latestVersion = this.semverUtils.maxVersion(satisfyingVersions);
+      const sortedVersions = satisfyingVersions.sort((a, b) => this.semverUtils.greaterThan(a, b) ? -1 : 1);
+      const latestVersion = sortedVersions[0];
       
       if (!latestVersion) {
         return null;
@@ -91,13 +92,11 @@ export class SafeUpgradeCalculator {
       // Check for vulnerabilities in the latest version
       const vulnerabilities = await this.osvClient.queryVulnerabilities(packageName, latestVersion);
       
-      // If there are critical or high vulnerabilities, try the next version
-      if (vulnerabilities.some(v => v.severity === 'critical' || v.severity === 'high')) {
-        const sortedVersions = satisfyingVersions.sort((a, b) => this.semverUtils.greaterThan(a, b) ? -1 : 1);
-        
+      // If there are critical vulnerabilities, try the next version
+      if (vulnerabilities.some(v => v.severity === 'critical')) {
         for (const version of sortedVersions) {
           const vulns = await this.osvClient.queryVulnerabilities(packageName, version);
-          if (!vulns.some(v => v.severity === 'critical' || v.severity === 'high')) {
+          if (!vulns.some(v => v.severity === 'critical')) {
             return version;
           }
         }
@@ -317,5 +316,117 @@ export class SafeUpgradeCalculator {
     
     logger.info(`Found ${upgradePaths.length} safe upgrade paths`);
     return upgradePaths;
+  }
+
+  private async getAvailableVersions(packageName: string): Promise<string[]> {
+    try {
+      const response = await fetch(`https://registry.npmjs.org/${packageName}`);
+      
+      if (!response.ok) {
+        throw new Error(`Failed to fetch package info for ${packageName}: ${response.status}`);
+      }
+      
+      const packageInfo = await response.json() as any;
+      const versions = Object.keys(packageInfo.versions || {});
+      
+      // Sort versions in descending order
+      return versions.sort((a: string, b: string) => {
+        try {
+          return this.semverUtils.greaterThan(a, b) ? -1 : 1;
+        } catch {
+          return b.localeCompare(a);
+        }
+      });
+    } catch (error) {
+      logger.error(`Failed to get available versions for ${packageName}: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      return [];
+    }
+  }
+
+  private findFixedVersions(vulnerabilities: Vulnerability[], availableVersions: string[]): string[] {
+    const fixedVersions = new Set<string>();
+    
+    for (const vuln of vulnerabilities) {
+      if (vuln.patchedVersions) {
+        for (const patchedVersion of vuln.patchedVersions) {
+          if (availableVersions.includes(patchedVersion)) {
+            fixedVersions.add(patchedVersion);
+          }
+        }
+      }
+    }
+    
+    return Array.from(fixedVersions);
+  }
+
+  private findSafestUpgrade(
+    currentVersion: string, 
+    fixedVersions: string[], 
+    availableVersions: string[]
+  ): string | null {
+    // Filter fixed versions that are greater than current version
+    const validUpgrades = fixedVersions.filter(version => {
+      try {
+        return this.semverUtils.greaterThan(version, currentVersion);
+      } catch {
+        return false;
+      }
+    });
+    
+    if (validUpgrades.length === 0) {
+      return null;
+    }
+    
+    // Prefer non-breaking upgrades
+    const nonBreakingUpgrades = validUpgrades.filter(version => 
+      !this.semverUtils.isBreakingUpgrade(currentVersion, version)
+    );
+    
+    if (nonBreakingUpgrades.length > 0) {
+      // Return the latest non-breaking upgrade
+      return this.semverUtils.maxVersion(nonBreakingUpgrades);
+    }
+    
+    // If no non-breaking upgrades, return the latest breaking upgrade
+    return this.semverUtils.maxVersion(validUpgrades);
+  }
+
+  private calculateConfidence(
+    currentVersion: string,
+    targetVersion: string,
+    fixedVersions: string[]
+  ): 'high' | 'medium' | 'low' {
+    let confidence = 0.2; // Lower base confidence
+    
+    // Higher confidence for direct patched versions
+    if (fixedVersions.includes(targetVersion)) {
+      confidence += 0.2;
+    }
+    
+    // Check version difference for confidence levels
+    const currentMajor = this.semverUtils.major(currentVersion);
+    const targetMajor = this.semverUtils.major(targetVersion);
+    const currentMinor = this.semverUtils.minor(currentVersion);
+    const targetMinor = this.semverUtils.minor(targetVersion);
+    
+    if (currentMajor === targetMajor) {
+      if (currentMinor === targetMinor) {
+        // Patch version upgrade (1.0.0 -> 1.0.1)
+        confidence += 0.6;
+      } else {
+        // Minor version upgrade (1.0.0 -> 1.5.0)
+        confidence += 0.3;
+      }
+    } else {
+      // Major version upgrade (1.0.0 -> 2.0.0)
+      confidence -= 0.1; // Reduce confidence for major changes
+    }
+    
+    confidence = Math.max(0, Math.min(1, confidence));
+    
+    // Convert to string levels
+    if (confidence >= 0.8) return 'high';
+    if (confidence >= 0.5) return 'medium';
+    return 'low';
   }
 }

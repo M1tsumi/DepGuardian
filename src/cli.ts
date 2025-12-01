@@ -7,19 +7,35 @@ import { Scanner } from './core/scanner.js';
 import { SafeUpgradeCalculator } from './core/updater.js';
 import { GitHubIntegration } from './integrations/github.js';
 import { HTMLReporter } from './reporting/html-reporter.js';
-import { logger } from './utils/logger.js';
-import { readFileSync, writeFileSync } from 'fs';
-import { join } from 'path';
+import { ConfigResolver, DepGuardianConfig } from './utils/config-resolver.js';
+import { logger, LogLevel } from './utils/logger.js';
+import { readFileSync, writeFileSync, existsSync } from 'fs';
+import { join, resolve } from 'path';
 
 const program = new Command();
 
-function loadConfig(configPath?: string): any {
+function loadConfig(configPath?: string): DepGuardianConfig {
+  const configResolver = ConfigResolver.getInstance();
+  
   try {
-    const path = configPath || join(process.cwd(), '.depguardian.json');
-    const configData = readFileSync(path, 'utf-8');
-    return JSON.parse(configData);
-  } catch {
-    return {};
+    const config = configResolver.loadConfig(configPath);
+    configResolver.validateConfig(config);
+    return config;
+  } catch (error) {
+    if (error instanceof Error && error.message.includes('ENOENT')) {
+      logger.warn('No configuration file found, using defaults');
+      logger.info('Create a .depguardian.json file to customize settings');
+      return configResolver.getDefaultConfig();
+    }
+    
+    if (error instanceof SyntaxError) {
+      logger.error('Configuration file contains invalid JSON');
+      logger.error('Please check your .depguardian.json file for syntax errors');
+      process.exit(1);
+    }
+    
+    logger.error(`Configuration error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    process.exit(1);
   }
 }
 
@@ -41,13 +57,48 @@ program
   .option('--markdown', 'Generate Markdown report')
   .option('-c, --config <path>', 'Path to config file')
   .option('--watch', 'Continuous monitoring mode')
+  .option('-v, --verbose', 'Enable detailed logging')
+  .option('-q, --quiet', 'Only show errors')
+  .option('--log-level <level>', 'Set log level (debug, info, warn, error)', 'info')
   .action(async (path: string, options: any) => {
-    const spinner = ora('Scanning for vulnerabilities...').start();
+    // Configure logging based on options
+    if (options.verbose) {
+      logger.setLevel(LogLevel.DEBUG);
+    } else if (options.quiet) {
+      logger.setLevel(LogLevel.ERROR);
+    } else {
+      const levelMap: Record<string, LogLevel> = {
+        debug: LogLevel.DEBUG,
+        info: LogLevel.INFO,
+        warn: LogLevel.WARN,
+        error: LogLevel.ERROR
+      };
+      logger.setLevel(levelMap[options.logLevel] || LogLevel.INFO);
+    }
+    
+    // Validate path
+    const resolvedPath = resolve(path);
+    if (!existsSync(resolvedPath)) {
+      logger.error(`Path does not exist: ${resolvedPath}`);
+      logger.info('Please provide a valid path to scan');
+      process.exit(1);
+    }
+    
+    const spinner = ora('Initializing scanner...').start();
     
     try {
+      spinner.text = 'Loading configuration...';
       const config = loadConfig(options.config);
+      
+      // Apply config defaults to CLI options
+      const severity = options.severity || config.scanning?.severity || 'medium';
+      const ignorePackages = options.ignore ? options.ignore.split(',').map((s: string) => s.trim()) : (config.scanning?.ignorePackages || []);
+      
+      spinner.text = 'Initializing scanner...';
       const scanner = new Scanner(config.snyk);
-      const result = await scanner.scanProject(path);
+      
+      spinner.text = 'Analyzing dependencies...';
+      const result = await scanner.scanProject(resolvedPath);
       
       spinner.succeed('Scan completed');
       
