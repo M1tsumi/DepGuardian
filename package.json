@@ -1,6 +1,6 @@
 {
   "name": "depguardian-cli",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A robust, real-time vulnerability scanner for npm dependencies that safeguards your projects against supply chain attacks",
   "type": "module",
   "main": "./dist/index.js",
