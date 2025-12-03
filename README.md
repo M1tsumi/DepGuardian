@@ -3,7 +3,7 @@
 [![npm version](https://badge.fury.io/js/depguardian-cli.svg)](https://badge.fury.io/js/depguardian-cli)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-A robust, real-time vulnerability scanner for npm dependencies that safeguards your projects against supply chain attacks. It automatically detects security issues, suggests safe upgrade paths, and creates pull requests for seamless patching. Empowering developers to maintain secure, up-to-date codebases with minimal effort.
+DepGuardian is a small CLI I built to keep npm projects from quietly drifting into dependency trouble. It scans your dependencies with OSV (and optionally Snyk), flags a few obvious supply-chain red flags, and can generate an HTML report you can drop into a pull request or share with your team.
 
 ## 🚀 Quick Start
 
@@ -63,32 +63,21 @@ cp templates/gitlab-ci.yml .gitlab-ci.yml
 }
 ```
 
-## 🔧 Features Implemented
+## What DepGuardian does today
 
-✅ **Phase 1 Complete:**
-- TypeScript project setup with ESM support
-- Package.json and lock file parsing (npm, pnpm, yarn)
-- OSV API integration for vulnerability data
-- Basic CLI with scan, check, init, and watch commands
-- Unit tests for core functionality
-- Configuration file generation
+DepGuardian is still young, but it already does a few useful things:
 
-✅ **Phase 2 Complete:**
-- **Supply Chain Attack Detection**
-  - Typosquatting detection (identifies packages with names similar to popular ones)
-  - Malicious script detection (analyzes install scripts for suspicious patterns)
-  - Suspicious activity detection (unusual publishing patterns, rapid releases)
-  - Compromised maintainer detection (suspicious emails, single maintainer risk)
-- **Safe Upgrade Calculator**
-  - Calculates upgrade paths that fix vulnerabilities
-  - Breaking change detection and risk assessment
-  - Confidence scoring for upgrade recommendations
-  - Safe version finding within constraints
-- **GitHub API Integration**
-  - Automatic PR creation for security updates
-  - Batch and individual upgrade PRs
-  - Supply chain alert reports
-  - Custom PR templates and labeling
+- Scans your `package.json` and lockfile (npm, pnpm, yarn) to figure out which packages you actually depend on.
+- Looks up known vulnerabilities via the OSV API, and can also talk to Snyk if you give it a token.
+- Runs a simple supply-chain check over your dependency list (typosquatting-style names, suspicious install scripts, unusual publish patterns, single-maintainer packages).
+- Generates an HTML report you can drop into a pull request or share with your team.
+- Lets you run quick, one-off checks for a single package from the CLI.
+
+There are also a couple of integrations that exist in the codebase but are still settling:
+
+- A `SafeUpgradeCalculator` that tries to suggest a reasonable target version and gives you a rough risk/confidence score.
+- A GitHub helper that can open security PRs based on those upgrade paths.
+  - The CLI flags `--pr` and `--fix` are currently placeholders and just print a warning; the underlying code is there if you want to wire it up yourself.
 
 ## 🚨 Supply Chain Security
 
@@ -140,36 +129,6 @@ npm run lint
 # Format code
 npm run format
 ```
-
-✅ **Phase 3 Complete:**
-- **Snyk API Integration**
-  - Multiple vulnerability source aggregation (OSV + Snyk)
-  - Rate limiting and error handling
-  - Vulnerability deduplication and severity merging
-  - CVSS score and vector support
-- **CI/CD Pipeline Integration**
-  - GitHub Actions workflow template
-  - GitLab CI/CD pipeline template
-  - Automated security scanning in CI/CD
-  - Slack notifications for threats
-  - License compliance checking
-  - Automated dependency updates
-- **Advanced Reporting**
-  - Interactive HTML reports with modern UI
-  - Click-to-copy package names
-  - Expandable threat details
-  - Mobile-responsive design
-  - Export to JSON and Markdown formats
-
-## 🔜 Coming Soon (Future Enhancements)
-
-- Dependency graph visualization
-- PDF report generation
-- Integration with more security sources (GitHub Advisory, npm audit)
-- Custom policy engine for enterprise rules
-- Team collaboration features
-- Real-time monitoring dashboard
-- API for programmatic access
 
 ## 📄 License
 

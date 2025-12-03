@@ -41,8 +41,8 @@ function loadConfig(configPath?: string): DepGuardianConfig {
 
 program
   .name('depguardian')
-  .description('Real-time npm vulnerability scanning with automatic PR creation')
-  .version('1.0.0');
+  .description('Scan your npm dependencies for known vulnerabilities and supply-chain red flags')
+  .version('1.1.0');
 
 program
   .command('scan')

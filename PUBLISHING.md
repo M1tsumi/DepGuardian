@@ -93,8 +93,8 @@ gh release create v1.0.0 --title "v1.0.0" --notes "See CHANGELOG.md for details"
 ## Post-Publishing Checklist
 
 ### ✅ Verification
-- [ ] Package is available on npm: `npm info @depguardian/cli`
-- [ ] Installation works: `npm install -g @depguardian/cli`
+- [ ] Package is available on npm: `npm info depguardian-cli`
+- [ ] Installation works: `npm install -g depguardian-cli`
 - [ ] CLI functionality works: `depguardian --version`
 - [ ] Documentation is accessible on npm
 

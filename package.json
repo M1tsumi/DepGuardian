@@ -1,7 +1,7 @@
 {
   "name": "depguardian-cli",
-  "version": "1.0.1",
-  "description": "A robust, real-time vulnerability scanner for npm dependencies that safeguards your projects against supply chain attacks",
+  "version": "1.1.0",
+  "description": "CLI that scans your npm dependencies with OSV (and optionally Snyk), highlights known vulnerabilities, and surfaces a few supply-chain red flags",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",

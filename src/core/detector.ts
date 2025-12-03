@@ -89,22 +89,32 @@ export class SupplyChainDetector {
     
     const threats: SupplyChainThreat[] = [];
     const suspiciousPatterns = [
-      /eval\s*\(/gi,
-      /Function\s*\(/gi,
-      /child_process/gi,
-      /exec\s*\(/gi,
-      /spawn\s*\(/gi,
-      /curl\s+/gi,
-      /wget\s+/gi,
-      /rm\s+-rf/gi,
-      /\.bashrc/gi,
-      /\.profile/gi,
-      /\/etc\//gi,
-      /sudo/gi,
-      /chmod\s+777/gi,
-      /base64/gi,
-      /crypto/gi,
+      /eval\s*\(/i,
+      /Function\s*\(/i,
+      /child_process/i,
+      /exec\s*\(/i,
+      /spawn\s*\(/i,
+      /curl\s+/i,
+      /wget\s+/i,
+      /powershell/i,
+      /Invoke-WebRequest/i,
+      /Invoke-Expression/i,
+      /nc\s+/i,
+      /bash\s+-c/i,
+      /sh\s+-c/i,
+      /rm\s+-rf/i,
+      /\.bashrc/i,
+      /\.profile/i,
+      /\/etc\//i,
+      /sudo/i,
+      /chmod\s+777/i,
+      /base64/i,
+      /Buffer\.from\([^)]*['"]base64['"]\)/i,
+      /atob\s*\(/i,
+      /crypto/i,
     ];
+
+    const threatsByPackage = new Map<string, SupplyChainThreat>();
     
     for (const dep of dependencies) {
       try {
@@ -114,37 +124,53 @@ export class SupplyChainDetector {
         
         for (const [version, versionInfo] of Object.entries(packageInfo.versions)) {
           const scripts = versionInfo.scripts || {};
-          const scriptContent = Object.values(scripts).join(' ');
+          const scriptEntries = Object.entries(scripts);
+
+          if (scriptEntries.length === 0) continue;
           
-          const matchedPatterns = suspiciousPatterns.filter(pattern => 
-            pattern.test(scriptContent)
-          );
+          const scriptContent = scriptEntries
+            .map(([name, cmd]) => `${name}: ${cmd}`)
+            .join(' ; ');
+          
+          const matchedPatterns = suspiciousPatterns.filter(pattern => pattern.test(scriptContent));
           
           if (matchedPatterns.length > 0) {
-            threats.push({
-              type: 'malicious-script',
-              packageName: dep.name,
-              severity: 'critical',
-              description: `Package "${dep.name}" contains suspicious install scripts`,
-              evidence: [
-                `Found suspicious patterns in install scripts`,
-                ...matchedPatterns.map(p => `Pattern: ${p.source}`),
-                `Version: ${version}`
-              ],
-              recommendations: [
-                'Review package source code immediately',
-                'Check package maintainer reputation',
-                'Consider alternative packages',
-                'Audit all dependencies that use this package'
-              ],
-              detectedAt: new Date(),
-            });
+            let threat = threatsByPackage.get(dep.name);
+            
+            if (!threat) {
+              threat = {
+                type: 'malicious-script',
+                packageName: dep.name,
+                severity: 'critical',
+                description: `Package "${dep.name}" contains suspicious install or lifecycle scripts`,
+                evidence: [
+                  'Found suspicious patterns in npm scripts that run during install or build',
+                ],
+                recommendations: [
+                  'Review package source code immediately',
+                  'Check package maintainer reputation',
+                  'Consider alternative packages',
+                  'Audit all dependencies that use this package',
+                ],
+                detectedAt: new Date(),
+              };
+              
+              threatsByPackage.set(dep.name, threat);
+            }
+            
+            threat.evidence.push(
+              `Version: ${version}`,
+              `Scripts: ${scriptEntries.map(([name]) => name).join(', ')}`,
+              ...matchedPatterns.map(p => `Pattern: ${p.source}`),
+            );
           }
         }
       } catch (error) {
         logger.warn(`Failed to analyze scripts for ${dep.name}: ${error instanceof Error ? error.message : 'Unknown error'}`);
       }
     }
+    
+    threats.push(...threatsByPackage.values());
     
     return threats;
   }

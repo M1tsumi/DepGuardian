@@ -8,7 +8,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [1.0.0] - 2025-12-01
 
 ### Added
-- **Phase 1: Core Vulnerability Scanning**
+- **Core Vulnerability Scanning**
   - TypeScript project setup with ESM support
   - Package.json and lock file parsing (npm, pnpm, yarn)
   - OSV API integration for vulnerability data
@@ -16,7 +16,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Unit tests for core functionality
   - Configuration file generation
 
-- **Phase 2: Supply Chain Security**
+- **Supply Chain Security**
   - Advanced supply chain attack detection
     - Typosquatting detection (identifies packages with names similar to popular ones)
     - Malicious script detection (analyzes install scripts for suspicious patterns)
@@ -33,7 +33,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
     - Supply chain alert reports
     - Custom PR templates and labeling
 
-- **Phase 3: Enterprise Features**
+- **Enterprise Features**
   - Snyk API integration
     - Multiple vulnerability source aggregation (OSV + Snyk)
     - Rate limiting and error handling
@@ -89,6 +89,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Development environment setup
 
 ## [Unreleased]
+
+## [1.1.0] - 2025-12-03
+
+### Security
+- Expanded the `malicious-script` detector to look for more real-world install-time tricks (extra shell hops, PowerShell helpers, aggressive `rm -rf`, base64 blobs, and friends).
+- Grouped script findings per package so you get one clear threat entry with richer evidence instead of a noisy stack of near-duplicates.
+
+### Changed
+- Updated the CLI version (`depguardian --version`) and the HTML report footer to say `1.1.0`, so the tool, changelog, and npm all agree on what you are running.
+- Tightened some public wording so it reflects what DepGuardian actually does today, without promising automation that isn’t wired up yet.
+
+## [1.0.1] - 2025-12-03
 
 ### 🚀 New Features
 - **Better CLI Experience**
