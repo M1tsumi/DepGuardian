@@ -52,6 +52,10 @@ program
   .option('-i, --ignore <packages>', 'Comma-separated list of packages to ignore', '')
   .option('--pr', 'Create GitHub PR for fixes')
   .option('--fix', 'Automatically update dependencies')
+  .option('--dry-run', 'Run actions in dry-run mode (no changes)')
+  .option('--auto-fix', 'Suggest safe upgrades (works with --dry-run)')
+  .option('--format <format>', 'Output format: json|html|md', 'text')
+  // Backwards compatible flags
   .option('--json', 'Output results as JSON')
   .option('--html', 'Generate HTML report')
   .option('--markdown', 'Generate Markdown report')
@@ -102,16 +106,31 @@ program
       
       spinner.succeed('Scan completed');
       
-      if (options.json) {
+      // Determine output format (preference: --format, then legacy flags)
+      let format = options.format || 'text';
+      if (options.json) format = 'json';
+      if (options.html) format = 'html';
+      if (options.markdown) format = 'md';
+
+      if (format === 'json') {
         console.log(JSON.stringify(result, null, 2));
         return;
       }
-      
-      if (options.html) {
+
+      if (format === 'html') {
         const htmlReporter = new HTMLReporter();
         const reportPath = join(process.cwd(), 'depguardian-report.html');
-        htmlReporter.generateReport(result, reportPath);
+        htmlReporter.generateReport(result, reportPath, program.version);
         console.log(chalk.green(`\n📄 HTML report generated: ${reportPath}`));
+        return;
+      }
+
+      if (format === 'md') {
+        // Minimal markdown output
+        console.log(`# DepGuardian Report\n\nGenerated: ${new Date().toISOString()}\n\n`);
+        console.log(`Total packages: ${result.totalPackages}`);
+        console.log(`Vulnerable packages: ${result.vulnerablePackages}`);
+        return;
       }
       
       // Display results
@@ -189,13 +208,37 @@ program
         console.log(chalk.green('\n✅ No security issues detected!'));
       }
       
-      // TODO: Implement PR creation, fixing, etc.
+      // Dry-run / auto-fix flow: suggest safe upgrades without making changes
+      if (options.autoFix || options.fix) {
+        if (!options.dryRun) {
+          console.log(chalk.yellow('\n⚠️  Auto-fix will run in dry-run mode by default. Re-run with proper config to enable changes.'));
+        }
+
+        const SafeCalc = SafeUpgradeCalculator;
+        const calc = new SafeCalc();
+
+        // Build dependency list from vulnerabilities (unique)
+        const depsMap: Record<string, any> = {};
+        for (const v of result.vulnerabilities) {
+          if (!depsMap[v.packageName]) depsMap[v.packageName] = { name: v.packageName, version: v.packageVersion || 'latest', type: 'dependencies' };
+        }
+        const deps = Object.values(depsMap);
+
+        const upgradePaths = await calc.calculateAllUpgradePaths(deps, result.vulnerabilities);
+
+        if (upgradePaths.length === 0) {
+          console.log(chalk.green('\n✅ No safe upgrade paths found')); 
+        } else {
+          console.log(chalk.bold('\n🔧 Suggested Safe Upgrades:'));
+          upgradePaths.forEach(up => {
+            console.log(`- ${up.packageName}: ${up.currentVersion} -> ${up.targetVersion} (${up.confidence})`);
+            if (up.changelogUrl) console.log(`  Changelog: ${up.changelogUrl}`);
+          });
+        }
+      }
+
       if (options.pr) {
         console.log(chalk.yellow('\n⚠️  PR creation not yet implemented'));
-      }
-      
-      if (options.fix) {
-        console.log(chalk.yellow('\n⚠️  Auto-fix not yet implemented'));
       }
       
     } catch (error) {

@@ -34,6 +34,11 @@ depguardian watch
 - `init` - Initialize configuration file
 - `watch [path]` - Watch mode for continuous monitoring
 
+Additional `scan` flags:
+- `--format <json|html|md|text>`: Output format (default: `text`).
+- `--dry-run`: Run suggested actions without making changes.
+- `--auto-fix`: Suggest safe upgrades (works with `--dry-run`).
+
 ### HTML Report Generation
 ```bash
 # Generate interactive HTML report
@@ -137,3 +142,45 @@ MIT License - see LICENSE file for details.
 ---
 
 **DepGuardian** - Your npm dependency security guardian. Protecting your projects from vulnerabilities and supply chain attacks. 
+
+## Installing Node/npm on Fedora
+
+Option A — System install (recommended):
+```bash
+sudo dnf install -y nodejs
+node -v
+npm -v
+```
+
+Option B — Per-user (nvm) — useful if you need multiple Node versions:
+```bash
+curl -fsSL https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.6/install.sh | bash
+export NVM_DIR="$([ -z "${XDG_CONFIG_HOME-}" ] && printf %s "${HOME}/.nvm" || printf %s "${XDG_CONFIG_HOME}/nvm")"
+[ -s "$NVM_DIR/nvm.sh" ] && \. "$NVM_DIR/nvm.sh"
+nvm install --lts
+nvm use --lts
+node -v
+npm -v
+```
+
+If you encounter `husky: command not found` during `npm install`, either install husky as a dev dependency:
+```bash
+npm install --save-dev husky
+npm install
+```
+or skip lifecycle scripts during install (local only):
+```bash
+npm install --ignore-scripts
+```
+
+## Release workflow (local)
+
+Create a release commit and tag locally, then push tags to remote:
+
+```bash
+# Bump version in package.json (already set to 1.1.0)
+git add package.json CHANGELOG.md
+git commit -m "chore(release): v1.1.0"
+git tag v1.1.0
+git push origin main --follow-tags
+```
