@@ -90,15 +90,24 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+## [1.2.0] - 2025-12-27
+
+### Added
+- `--format <json|html|md|text>` output option for `depguardian scan` (stable JSON and markdown outputs).
+- `--dry-run` and `--auto-fix` flags: headless suggested safe-upgrade flow (dry-run by default).
+- Dynamic HTML report footer now shows the CLI version.
+
+### Changed
+- Documentation: added Fedora install steps and publishing guidance to `README.md`.
+
+### Fixes
+- TypeScript: call `program.version()` correctly when generating reports (build fix).
+
 ## [1.1.0] - 2025-12-03
 
 ### Security
 - Expanded the `malicious-script` detector to look for more real-world install-time tricks (extra shell hops, PowerShell helpers, aggressive `rm -rf`, base64 blobs, and friends).
 - Grouped script findings per package so you get one clear threat entry with richer evidence instead of a noisy stack of near-duplicates.
-
-### Changed
-- Updated the CLI version (`depguardian --version`) and the HTML report footer to say `1.1.0`, so the tool, changelog, and npm all agree on what you are running.
-- Tightened some public wording so it reflects what DepGuardian actually does today, without promising automation that isn’t wired up yet.
 
 ## [1.0.1] - 2025-12-03
 
