@@ -120,7 +120,7 @@ program
       if (format === 'html') {
         const htmlReporter = new HTMLReporter();
         const reportPath = join(process.cwd(), 'depguardian-report.html');
-        htmlReporter.generateReport(result, reportPath, program.version);
+        htmlReporter.generateReport(result, reportPath, program.version());
         console.log(chalk.green(`\n📄 HTML report generated: ${reportPath}`));
         return;
       }
